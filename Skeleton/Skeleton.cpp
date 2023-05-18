@@ -93,6 +93,8 @@ const float kEpsilon = 0.0001f;
 struct Triangle : public Intersectable {
 	vec3 r1, r2, r3;
 
+	Triangle() {}
+
 	Triangle(vec3 _r1, vec3 _r2, vec3 _r3, Material* _material) {
 		r1 = _r1;
 		r2 = _r2;
@@ -180,41 +182,82 @@ struct Triangle : public Intersectable {
 
 };
 
+struct Square : Intersectable {
+	Triangle t1, t2;
+
+	Square(Triangle _t1, Triangle _t2) {
+		t1 = _t1;
+		t2 = _t2;
+	}
+
+	Hit intersect(const Ray& ray) {
+		Hit hit;
+		Hit hit1 = t1.intersect(ray);
+		Hit hit2 = t2.intersect(ray);
+
+		if (hit1.t > 0) return hit1;
+		if (hit2.t > 0) return hit2;
+		return hit;
+	}
+};
+
 struct Cube : Intersectable {
-	std::vector<Triangle*> triangles;
+	std::vector<Triangle> triangles;
+	std::vector<Square> sides;
 
 	Cube(Material* _material) {
-		vec3 v0 = vec3(0.0, 0.0, 0.0);
-		vec3 v1 = vec3(0.0, 0.0, 1.0);
-		vec3 v2 = vec3(0.0, 1.0, 0.0);
-		vec3 v3 = vec3(0.0, 1.0, 1.0);
-		vec3 v4 = vec3(1.0, 0.0, 0.0);
-		vec3 v5 = vec3(1.0, 0.0, 1.0);
-		vec3 v6 = vec3(1.0, 1.0, 0.0);
-		vec3 v7 = vec3(1.0, 1.0, 1.0);
+		vec3 v0 = vec3(0.0f, 0.0f, 0.0f);
+		vec3 v1 = vec3(0.0f, 0.0f, 1.0f);
+		vec3 v2 = vec3(0.0f, 1.0f, 0.0f);
+		vec3 v3 = vec3(0.0f, 1.0f, 1.0f);
+		vec3 v4 = vec3(1.0f, 0.0f, 0.0f);
+		vec3 v5 = vec3(1.0f, 0.0f, 1.0f);
+		vec3 v6 = vec3(1.0f, 1.0f, 0.0f);
+		vec3 v7 = vec3(1.0f, 1.0f, 1.0f);
 
-		triangles.push_back(new Triangle(v0, v6, v4, material));
-		triangles.push_back(new Triangle(v0, v2, v6, material));
-		triangles.push_back(new Triangle(v0, v3, v2, material));
-		triangles.push_back(new Triangle(v0, v1, v3, material));
-		triangles.push_back(new Triangle(v2, v7, v6, material));
-		triangles.push_back(new Triangle(v2, v3, v7, material));
-		triangles.push_back(new Triangle(v4, v6, v7, material));
-		triangles.push_back(new Triangle(v4, v7, v5, material));
-		triangles.push_back(new Triangle(v0, v4, v5, material));
-		triangles.push_back(new Triangle(v0, v5, v1, material));
-		triangles.push_back(new Triangle(v1, v5, v7, material));
-		triangles.push_back(new Triangle(v1, v7, v3, material));
+		sides.push_back(Square(Triangle(v0, v6, v4, material), Triangle(v0, v2, v6, material)));
+		sides.push_back(Square(Triangle(v0, v3, v2, material), Triangle(v0, v1, v3, material)));
+		sides.push_back(Square(Triangle(v2, v7, v6, material), Triangle(v2, v3, v7, material)));
+		sides.push_back(Square(Triangle(v0, v4, v5, material), Triangle(v0, v5, v1, material)));
+		sides.push_back(Square(Triangle(v1, v5, v7, material), Triangle(v1, v7, v3, material)));
+		sides.push_back(Square(Triangle(v6, v7, v4, material), Triangle(v4, v7, v5, material)));
+
+		triangles.push_back(Triangle(v0, v6, v4, material));
+		triangles.push_back(Triangle(v0, v2, v6, material));
+		triangles.push_back(Triangle(v0, v3, v2, material));
+		triangles.push_back(Triangle(v0, v1, v3, material));
+		// 
+		triangles.push_back(Triangle(v2, v6, v7, material));
+			//triangles.push_back(Triangle(v2, v7, v6, material));
+		triangles.push_back(Triangle(v2, v3, v7, material));
+		//Egyik els oldal:
+		triangles.push_back(Triangle(v4, v6, v7, material));
+		triangles.push_back(Triangle(v4, v7, v5, material));
+		// 
+		triangles.push_back(Triangle(v0, v4, v5, material));
+		triangles.push_back(Triangle(v0, v5, v1, material));
+		//masik ekso oldal:
+		triangles.push_back(Triangle(v1, v5, v7, material));
+		triangles.push_back(Triangle(v1, v7, v3, material));
 
 		material = _material;
 	}
 
 	Hit intersect(const Ray& ray) {
 		Hit bestHit;
+		return secondIntersect(ray);
 
-		for (int i = 0; i < 12; i++) {
+		/*for (Triangle t : triangles) {
 
-			Hit hit = triangles[i]->intersect(ray);
+			Hit hit = t.intersect(ray);
+			if ((hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t)) || (hit.t > 0 && (bestHit.t < 0 || hit.t > bestHit.t)))
+			{
+				bestHit = hit;
+				bestHit.material = material;
+			}
+		}*/
+		for (Square s : sides) {
+			Hit hit = s.intersect(ray);
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
 			{
 				bestHit = hit;
@@ -222,16 +265,25 @@ struct Cube : Intersectable {
 			}
 		}
 		return bestHit;
-		return secondIntersect(ray);
 	}
 
 	Hit secondIntersect(const Ray& ray) {
 		Hit bestHit;
 		Hit secondBestHit;
 
-		for (int i = 0; i < 12; i++) {
+		/*for (Triangle t : triangles) {
 
-			Hit hit = triangles[i]->intersect(ray);
+			Hit hit = t.intersect(ray);
+			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
+			{
+				secondBestHit = bestHit;
+				secondBestHit.material = material;
+				bestHit = hit;
+				bestHit.material = material;
+			}
+		}*/
+		for (Square s : sides) {
+			Hit hit = s.intersect(ray);
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
 			{
 				secondBestHit = bestHit;
@@ -243,6 +295,113 @@ struct Cube : Intersectable {
 		return secondBestHit;
 	}
 
+};
+
+struct Diamond : Intersectable
+{
+	std::vector<Triangle> sides;
+
+	Diamond(Material * _material) {
+		material = _material;
+
+		vec3 shift = vec3(0.8f, 0.4f, 0.5f);
+		int scale = 400;
+
+		vec3 v1 = vec3(0, 78, 0) / scale + shift;
+		vec3 v2 = vec3(45, 0, 45) / scale + shift;
+		vec3 v3 = vec3(45, 0, -45) / scale + shift;
+		vec3 v4 = vec3(-45, 0, -45) / scale + shift;
+		vec3 v5 = vec3(-45, 0, 45) / scale + shift;
+		vec3 v6 = vec3(0, -78, 0) / scale + shift;
+		
+		sides.push_back(Triangle(v1, v2, v3, material));
+		sides.push_back(Triangle(v1, v3, v4, material));
+		sides.push_back(Triangle(v1, v4, v5, material));
+		sides.push_back(Triangle(v1, v5, v2, material));
+		
+		sides.push_back(Triangle(v6, v5, v4, material));
+		sides.push_back(Triangle(v6, v4, v3, material));
+		sides.push_back(Triangle(v6, v3, v2, material));
+		sides.push_back(Triangle(v6, v2, v1, material));
+		sides.push_back(Triangle(v6, v1, v5, material));
+	}
+
+	Hit intersect(const Ray& ray) {
+		Hit bestHit;
+		for (Triangle t : sides) {
+
+			Hit hit = t.intersect(ray);
+			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
+			{
+				bestHit = hit;
+				bestHit.material = material;
+			}
+		}
+		return bestHit;
+	}
+};
+
+struct Icosahedron : Intersectable {
+	std::vector<Triangle> sides;
+
+	Icosahedron(Material* _material) {
+		material = _material;
+		vec3 shift = vec3(0.5f, 0.5f, 0.8f);
+		int n = 5;
+
+		vec3 v1 = vec3(0, -0.525731, 0.850651)  / n + shift;
+		vec3 v2 = vec3(0.850651, 0, 0.525731)   / n + shift;
+		vec3 v3 = vec3(0.850651, 0, -0.525731)  / n + shift;
+		vec3 v4 = vec3(-0.850651, 0, -0.525731) / n + shift;
+		vec3 v5 = vec3(-0.850651, 0, 0.525731)  / n + shift;
+		vec3 v6 = vec3(-0.525731, 0.850651, 0)  / n + shift;
+		vec3 v7 = vec3(0.525731, 0.850651, 0)   / n + shift;
+		vec3 v8 = vec3(0.525731, -0.850651, 0)  / n + shift;
+		vec3 v9 = vec3(-0.525731, -0.850651, 0) / n + shift;
+		vec3 v10 = vec3(0, -0.525731, -0.850651)/ n + shift;
+		vec3 v11 = vec3(0, 0.525731, -0.850651) / n + shift;
+		vec3 v12 = vec3( 0, 0.525731,  0.850651)/ n + shift;
+
+		sides.push_back(Triangle(v2, v3, v7, material));
+		sides.push_back(Triangle(v2, v8, v3, material));
+		sides.push_back(Triangle(v4, v5, v6, material));
+		sides.push_back(Triangle(v5, v4, v9, material));
+		
+		sides.push_back(Triangle(v7, v6, v12, material));
+		sides.push_back(Triangle(v6, v7, v11, material));
+		sides.push_back(Triangle(v10, v11, v3, material));
+		sides.push_back(Triangle(v11, v10, v4, material));
+		
+		sides.push_back(Triangle(v8, v8, v10, material));
+		sides.push_back(Triangle(v9, v8, v1, material));
+		sides.push_back(Triangle(v12, v1, v2, material));
+		sides.push_back(Triangle(v1, v12, v5, material));
+		
+		sides.push_back(Triangle(v7, v3, v11, material));
+		sides.push_back(Triangle(v2, v7, v12, material));
+		sides.push_back(Triangle(v4, v6, v11, material));
+		sides.push_back(Triangle(v6, v5, v12, material));
+
+		sides.push_back(Triangle(v3, v8, v10, material));
+		sides.push_back(Triangle(v8, v2, v1, material));
+		sides.push_back(Triangle(v4, v10, v9, material));
+		sides.push_back(Triangle(v5, v9, v1, material));
+
+	}
+
+	Hit intersect(const Ray& ray) {
+		Hit bestHit;
+		for (Triangle t : sides) {
+
+			Hit hit = t.intersect(ray);
+			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
+			{
+				bestHit = hit;
+				bestHit.material = material;
+			}
+		}
+		return bestHit;
+	}
 };
 
 class Camera {
@@ -282,16 +441,16 @@ class Scene {
 	vec3 La;
 public:
 	void build() {
-		vec3 eye = vec3(4, 0.4f, 4), vup = vec3(0, 1, 0), lookat = vec3(0, 0.5f, 0);
-		float fov = 20 * M_PI / 180;
+		vec3 eye = vec3(3, 0.5, 2), vup = vec3(0, 1, 0), lookat = vec3(0.5f, 0.5f, 0.5f);
+		float fov = 30 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
-		La = vec3(0.4f, 0.4f, 0.4f);
-		vec3 lightDirection(10, 10, 10), Le(0, 0, 2);
+		La = vec3(0.1f, 0.1f, 0.1f);
+		vec3 lightDirection(2, 0.4f, 3), Le(1, 1, 1);
 		lights.push_back(new Light(lightDirection, Le));
 
-		vec3 kd(0.3f, 0.2f, 0.1f), ks(2, 2, 2);
-		Material* material = new Material(kd, ks, 50);
+		vec3 kd(0.2f, 0.2f, 0.2f), ks(5, 5, 5);
+		Material* material = new Material(kd, ks, 13);
 		//for (int i = 0; i < 500; i++)
 		//	objects.push_back(new Sphere(vec3(rnd() - 0.5f, rnd() - 0.5f, rnd() - 0.5f), rnd() * 0.1f, material));
 	
@@ -301,6 +460,8 @@ public:
 
 		//objects.push_back(new Triangle(v1, v2, v3, material));
 		objects.push_back(new Cube(material));
+		objects.push_back(new Diamond(material));
+		objects.push_back(new Icosahedron(material));
 	}
 
 	void render(std::vector<vec4>& image) {
@@ -330,7 +491,10 @@ public:
 
 	vec3 trace(Ray ray, int depth = 0) {
 		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) return La;
+		La.x = 0.2 * (1 + dot(normalize(hit.normal), normalize(ray.dir)));
+		La.y = 0.2 * (1 + dot(normalize(hit.normal), normalize(ray.dir)));
+		La.z = 0.2 * (1 + dot(normalize(hit.normal), normalize(ray.dir)));
+		if (hit.t < 0) return vec3(0, 0, 0);
 		vec3 outRadiance = hit.material->ka * La;
 		for (Light* light : lights) {
 			Ray shadowRay(hit.position + hit.normal * epsilon, light->direction);
@@ -343,6 +507,10 @@ public:
 			}
 		}
 		return outRadiance;
+	}
+
+	Camera getCamera() {
+		return camera;
 	}
 };
 
