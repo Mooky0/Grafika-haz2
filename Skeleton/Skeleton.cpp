@@ -36,7 +36,8 @@
 struct Material {
 	vec3 ka, kd, ks;
 	float  shininess;
-	Material(vec3 _kd, vec3 _ks, float _shininess) : ka(_kd* M_PI), kd(_kd), ks(_ks) { shininess = _shininess; }
+	vec3 diffuseAlbedo;
+	Material(vec3 _kd, vec3 _ks, float _shininess, vec3 da) : ka(_kd* M_PI), kd(_kd), ks(_ks) { shininess = _shininess; diffuseAlbedo = da; }
 };
 
 struct Hit {
@@ -77,7 +78,7 @@ struct Sphere : public Intersectable {
 		float discr = b * b - 4.0f * a * c;
 		if (discr < 0) return hit;
 		float sqrt_discr = sqrtf(discr);
-		float t1 = (-b + sqrt_discr) / 2.0f / a;	// t1 >= t2 for sure
+		float t1 = (-b + sqrt_discr) / 2.0f / a;
 		float t2 = (-b - sqrt_discr) / 2.0f / a;
 		if (t1 <= 0) return hit;
 		hit.t = (t2 > 0) ? t2 : t1;
@@ -103,7 +104,6 @@ struct Triangle : public Intersectable {
 	}
 
 	Hit intersect(const Ray& ray) {
-		//Hit hit;
 		
 		Hit hit;
 		vec3 n = normalize(cross(r2 - r1, r3 - r1));
@@ -121,63 +121,6 @@ struct Triangle : public Intersectable {
 		hit.position = p;
 		hit.t = t;
 		return hit;
-
-		/*
-		// compute the plane's normal
-		vec3 v0v1 = r2 - r1;
-		vec3 v0v2 = r3 - r1;
-		// no need to normalize
-		vec3 N = cross(v0v1, v0v2); // N
-		float area2 = length(N);
-
-		// Step 1: finding P
-
-		// check if the ray and plane are parallel.
-		float NdotRayDirection = dot(N, ray.dir);
-		if (fabs(NdotRayDirection) < kEpsilon) // almost 0
-			return hit; // they are parallel, so they don't intersect! 
-
-		// compute d parameter using equation 2
-		float d = -dot(N, r1);
-
-		// compute t (equation 3)
-		int t = -(dot(N, ray.start) + d) / NdotRayDirection;
-
-		// check if the triangle is behind the ray
-		if (t < 0) return hit; // the triangle is behind
-
-		// compute the intersection point using equation 1
-		vec3 P = ray.start+ t * ray.dir;
-
-		// Step 2: inside-outside test
-		vec3 C; // vector perpendicular to triangle's plane
-
-		// edge 0
-		vec3 edge0 = r2 - r1;
-		vec3 vp0 = P - r1;
-		C = cross(edge0, vp0);
-		if (dot(N, C) < 0) return hit; // P is on the right side
-
-		// edge 1
-		vec3 edge1 = r3 - r2;
-		vec3 vp1 = P - r2;
-		C = cross(edge1, vp1);
-		if (dot(N, C) < 0)  return hit; // P is on the right side
-
-		// edge 2
-		vec3 edge2 = r1 - r3;
-		vec3 vp2 = P - r3;
-		C = cross(edge2, vp2);
-		if (dot(N, C) < 0) return hit; // P is on the right side;
-
-
-		hit.material = material;
-		hit.normal = N;
-		hit.position = P;
-		hit.t = t;
-
-		return hit; // this ray hits the triangl
-		*/
 	}
 
 };
@@ -226,17 +169,12 @@ struct Cube : Intersectable {
 		triangles.push_back(Triangle(v0, v2, v6, material));
 		triangles.push_back(Triangle(v0, v3, v2, material));
 		triangles.push_back(Triangle(v0, v1, v3, material));
-		// 
 		triangles.push_back(Triangle(v2, v6, v7, material));
-			//triangles.push_back(Triangle(v2, v7, v6, material));
 		triangles.push_back(Triangle(v2, v3, v7, material));
-		//Egyik els oldal:
 		triangles.push_back(Triangle(v4, v6, v7, material));
 		triangles.push_back(Triangle(v4, v7, v5, material));
-		// 
 		triangles.push_back(Triangle(v0, v4, v5, material));
 		triangles.push_back(Triangle(v0, v5, v1, material));
-		//masik ekso oldal:
 		triangles.push_back(Triangle(v1, v5, v7, material));
 		triangles.push_back(Triangle(v1, v7, v3, material));
 
@@ -246,16 +184,6 @@ struct Cube : Intersectable {
 	Hit intersect(const Ray& ray) {
 		Hit bestHit;
 		return secondIntersect(ray);
-
-		/*for (Triangle t : triangles) {
-
-			Hit hit = t.intersect(ray);
-			if ((hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t)) || (hit.t > 0 && (bestHit.t < 0 || hit.t > bestHit.t)))
-			{
-				bestHit = hit;
-				bestHit.material = material;
-			}
-		}*/
 		for (Square s : sides) {
 			Hit hit = s.intersect(ray);
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
@@ -270,18 +198,6 @@ struct Cube : Intersectable {
 	Hit secondIntersect(const Ray& ray) {
 		Hit bestHit;
 		Hit secondBestHit;
-
-		/*for (Triangle t : triangles) {
-
-			Hit hit = t.intersect(ray);
-			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
-			{
-				secondBestHit = bestHit;
-				secondBestHit.material = material;
-				bestHit = hit;
-				bestHit.material = material;
-			}
-		}*/
 		for (Square s : sides) {
 			Hit hit = s.intersect(ray);
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))
@@ -346,7 +262,7 @@ struct Icosahedron : Intersectable {
 
 	Icosahedron(Material* _material) {
 		material = _material;
-		vec3 shift = vec3(0.5f, 0.5f, 0.8f);
+		vec3 shift = vec3(0.5f, 0.3f, 0.8f);
 		int n = 5;
 
 		vec3 v1 = vec3(0, -0.525731, 0.850651)  / n + shift;
@@ -404,6 +320,88 @@ struct Icosahedron : Intersectable {
 	}
 };
 
+const float epsilon = 0.0001f;
+struct PointLight {
+	vec3 location;
+	vec3 power;
+	Intersectable* cone;
+
+	PointLight(vec3 _location, vec3 _power) {
+		location = _location;
+		power = _power;
+	}
+	void setCone(Intersectable* c) {
+		cone = c;
+	}
+	double distanceOf(vec3 point) {
+		return length(location - point);
+	}
+	vec3 directionOf(vec3 point) {
+		return normalize((location - point));
+	}
+	vec3 radianceAt(vec3 point) {
+		double distance2 = dot(location - point, location - point);
+		if (distance2 < epsilon) distance2 = epsilon;
+		return power / distance2;
+	}
+
+	void setPosition(vec3 _where, vec3 _normal) {
+		location = _where + epsilon* 100 * normalize(_normal);
+
+	}
+};
+
+struct Cone : Intersectable {
+	float alpha, h;
+	vec3 n, p;
+	PointLight* pl;
+
+	Cone(float _a, float _h, vec3 _n, vec3 _p, Material* _material, PointLight* _pl) {
+		alpha = _a;
+		h = _h;
+		n = _n;
+		p = _p;
+		material = _material;
+		pl = _pl;
+	}
+
+	Hit intersect(const Ray& ray) {
+		Hit hit;
+		vec3 tav = ray.start - p;
+
+		float a = dot(ray.dir, n) * dot(ray.dir, n) - dot(ray.dir, ray.dir) * cosf(alpha) * cosf(alpha);
+		float b = 2. * (dot(ray.dir, n) * dot(tav, n) - dot(ray.dir, tav) * cosf(alpha) * cosf(alpha));
+		float c = dot(tav, n) * dot(tav, n) - dot(tav, tav) * cosf(alpha) * cosf(alpha);
+
+		float desc = b * b - 4.0 * a * c;
+		if (desc < 0) return hit;
+		float t1 = (-b + sqrt(desc)) / (2.0 * a);
+		float t2 = (-b - sqrt(desc)) / (2.0 * a);
+
+		float t;
+		vec3 r1 = (ray.start + ray.dir * t1) - p;
+		vec3 r2 = (ray.start + ray.dir * t2) - p;
+		if (t1 < 0 && t2 < 0) return hit;
+		else if (0 <= dot(r1, n) && h >= dot(r1, n) && t1 > 0) t = t1;
+		else if (0 <= dot(r2, n) && h >= dot(r2, n) && t2 > 0) t = t2;
+
+		vec3 pos = (ray.start + ray.dir * t) - p;
+		if (dot(pos, n) < 0.0 || dot(pos, n) > h) return hit;
+
+		hit.material = material;
+		hit.position = ray.start + ray.dir * t;
+		hit.t = t;
+		hit.normal = normalize(2 * (dot(pos, n) * n) - 2 * pos * cosf(alpha) * cosf(alpha));
+		return hit;
+	}
+
+	void setPosition(vec3 _where, vec3 _normal) {
+		n = _normal;
+		p = _where;
+		pl->setPosition(_where, _normal);
+	}
+};
+
 class Camera {
 	vec3 eye, lookat, right, up;
 public:
@@ -432,11 +430,12 @@ struct Light {
 
 float rnd() { return (float)rand() / RAND_MAX; }
 
-const float epsilon = 0.0001f;
 
 class Scene {
 	std::vector<Intersectable*> objects;
+	std::vector<Cone*> cones;
 	std::vector<Light*> lights;
+	std::vector<PointLight*> pointLights;
 	Camera camera;
 	vec3 La;
 public:
@@ -445,23 +444,44 @@ public:
 		float fov = 30 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
-		La = vec3(0.1f, 0.1f, 0.1f);
+		La = 2 * vec3(0.6f, 0.6f, 0.6f);
 		vec3 lightDirection(2, 0.4f, 3), Le(1, 1, 1);
-		lights.push_back(new Light(lightDirection, Le));
 
-		vec3 kd(0.2f, 0.2f, 0.2f), ks(5, 5, 5);
-		Material* material = new Material(kd, ks, 13);
-		//for (int i = 0; i < 500; i++)
-		//	objects.push_back(new Sphere(vec3(rnd() - 0.5f, rnd() - 0.5f, rnd() - 0.5f), rnd() * 0.1f, material));
+		vec3 kd(0.2f, 0.2f, 0.2f), ks(2, 2, 2);
+		Material* material = new Material(kd, ks, 50, vec3(1, 1, 1));
 	
 		vec3 v1(0.0f, 0.0f, 0.0f);
 		vec3 v2(0.0f, 1.0f, 1.0f);
 		vec3 v3(1.0f, 0.0f, 0.0f);
 
-		//objects.push_back(new Triangle(v1, v2, v3, material));
 		objects.push_back(new Cube(material));
 		objects.push_back(new Diamond(material));
 		objects.push_back(new Icosahedron(material));
+		
+		vec3 pz = vec3(0.5f, 0, 0.5f);
+		vec3 nz = vec3(0, 1, 0);
+		PointLight* zoldFeny = new PointLight(pz + epsilon * nz * 100, vec3(0.0f, 1.0f, 0.0f));
+		pointLights.push_back(zoldFeny);
+		Cone* zoldKup = new Cone(0.3f, 0.1f, nz, pz, material, zoldFeny);
+		objects.push_back(zoldKup);
+		cones.push_back(zoldKup);
+		zoldFeny->setCone(zoldKup);
+
+		vec3 pp = vec3(0.5f, 1, 0.5f);
+		vec3 np = vec3(0, -1, 0);
+		PointLight* pirosFeny = new PointLight(pp + epsilon * np * 100, vec3(1.0f, 0.0f, 0.0f));
+		pointLights.push_back(pirosFeny);
+		Cone* pirosKup = new Cone(0.3f, 0.1f, np, pp, material, pirosFeny);
+		objects.push_back(pirosKup);
+		cones.push_back(pirosKup);
+
+		vec3 pk = vec3(0.6f, 1, 0.6f);
+		vec3 nk = vec3(0, -1, 0);
+		PointLight* kekFeny = new PointLight(pk + epsilon * nk * 100, vec3(0.0f, 0.0f, 1.0f));
+		pointLights.push_back(kekFeny);
+		Cone* kekKup = new Cone(0.3f, 0.1f, nk, pk, material, kekFeny);
+		objects.push_back(kekKup);
+		cones.push_back(kekKup);
 	}
 
 	void render(std::vector<vec4>& image) {
@@ -477,47 +497,63 @@ public:
 	Hit firstIntersect(Ray ray) {
 		Hit bestHit;
 		for (Intersectable* object : objects) {
-			Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
+			Hit hit = object->intersect(ray);
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))  bestHit = hit;
 		}
 		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
 		return bestHit;
 	}
 
-	bool shadowIntersect(Ray ray) {	// for directional lights
+	bool shadowIntersect(Ray ray) {
 		for (Intersectable* object : objects) if (object->intersect(ray).t > 0) return true;
 		return false;
 	}
 
 	vec3 trace(Ray ray, int depth = 0) {
 		Hit hit = firstIntersect(ray);
-		La.x = 0.2 * (1 + dot(normalize(hit.normal), normalize(ray.dir)));
-		La.y = 0.2 * (1 + dot(normalize(hit.normal), normalize(ray.dir)));
-		La.z = 0.2 * (1 + dot(normalize(hit.normal), normalize(ray.dir)));
 		if (hit.t < 0) return vec3(0, 0, 0);
-		vec3 outRadiance = hit.material->ka * La;
+		vec3 outRadiance = hit.material->ka * La * 0.2 * (1 + dot(normalize(hit.normal), -normalize(ray.dir)));
 		for (Light* light : lights) {
 			Ray shadowRay(hit.position + hit.normal * epsilon, light->direction);
 			float cosTheta = dot(hit.normal, light->direction);
-			if (cosTheta > 0 && !shadowIntersect(shadowRay)) {	// shadow computation
+			if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
 				outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
 				vec3 halfway = normalize(-ray.dir + light->direction);
 				float cosDelta = dot(hit.normal, halfway);
 				if (cosDelta > 0) outRadiance = outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shininess);
 			}
 		}
+		vec3 outDir;
+		for (PointLight* pl : pointLights) {
+			outDir = pl->directionOf(hit.position);
+			Hit shadowHit = firstIntersect(Ray(hit.position + hit.normal * epsilon, outDir));
+			if (shadowHit.t < epsilon || shadowHit.t > pl->distanceOf(hit.position)) {
+				double cosThetaL = dot(hit.normal, outDir);
+				if (cosThetaL >= epsilon) {
+					outRadiance = outRadiance + hit.material->diffuseAlbedo / M_PI * cosThetaL * pl->radianceAt(hit.position);
+				}
+			}
+		}
 		return outRadiance;
 	}
 
-	Camera getCamera() {
-		return camera;
+	void relocateCone(int x, int y) {
+		Hit h = firstIntersect(camera.getRay(x, windowHeight - y));
+		Cone* min = cones[0];
+
+		for (Cone* i : cones) {
+			if (length(i->p - h.position) < length(min->p - h.position)) {
+				min = i;
+			}
+		}
+		min->setPosition(h.position, h.normal);
 	}
+
 };
 
-GPUProgram gpuProgram; // vertex and fragment shaders
+GPUProgram gpuProgram;
 Scene scene;
 
-// vertex shader in GLSL
 const char* vertexSource = R"(
 	#version 330
     precision highp float;
@@ -531,7 +567,6 @@ const char* vertexSource = R"(
 	}
 )";
 
-// fragment shader in GLSL
 const char* fragmentSource = R"(
 	#version 330
     precision highp float;
@@ -546,36 +581,34 @@ const char* fragmentSource = R"(
 )";
 
 class FullScreenTexturedQuad {
-	unsigned int vao;	// vertex array object id and texture id
+	unsigned int vao;
 	Texture texture;
 public:
 	FullScreenTexturedQuad(int windowWidth, int windowHeight, std::vector<vec4>& image)
 		: texture(windowWidth, windowHeight, image)
 	{
-		glGenVertexArrays(1, &vao);	// create 1 vertex array object
-		glBindVertexArray(vao);		// make it active
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
 
-		unsigned int vbo;		// vertex buffer objects
-		glGenBuffers(1, &vbo);	// Generate 1 vertex buffer objects
+		unsigned int vbo;
+		glGenBuffers(1, &vbo);
 
-		// vertex coordinates: vbo0 -> Attrib Array 0 -> vertexPosition of the vertex shader
-		glBindBuffer(GL_ARRAY_BUFFER, vbo); // make it active, it is an array
-		float vertexCoords[] = { -1, -1,  1, -1,  1, 1,  -1, 1 };	// two triangles forming a quad
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertexCoords), vertexCoords, GL_STATIC_DRAW);	   // copy to that part of the memory which is not modified 
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		float vertexCoords[] = { -1, -1,  1, -1,  1, 1,  -1, 1 };
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertexCoords), vertexCoords, GL_STATIC_DRAW);
 		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);     // stride and offset: it is tightly packed
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 	}
 
 	void Draw() {
-		glBindVertexArray(vao);	// make the vao and its vbos active playing the role of the data source
+		glBindVertexArray(vao);
 		gpuProgram.setUniform(texture, "textureUnit");
-		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);	// draw two triangles forming a quad
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
 	}
 };
 
 FullScreenTexturedQuad* fullScreenTexturedQuad;
 
-// Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
 	scene.build();
@@ -586,42 +619,42 @@ void onInitialization() {
 	long timeEnd = glutGet(GLUT_ELAPSED_TIME);
 	printf("Rendering time: %d milliseconds\n", (timeEnd - timeStart));
 
-	// copy image to GPU as a texture
 	fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight, image);
 
-	// create program for the GPU
 	gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
 }
 
-// Window has become invalid: Redraw
 void onDisplay() {
 	glViewport(0, 0, windowWidth, windowHeight);
 
 	std::vector<vec4> image(windowWidth * windowHeight);
+	long timeStart = glutGet(GLUT_ELAPSED_TIME);
 	scene.render(image);
+	long timeEnd = glutGet(GLUT_ELAPSED_TIME);
+	printf("Rendering time: %d milliseconds\n", (timeEnd - timeStart));
+
+	fullScreenTexturedQuad = new FullScreenTexturedQuad(windowWidth, windowHeight, image);
 	fullScreenTexturedQuad->Draw();
-	glutSwapBuffers();									// exchange the two buffers
+	glutSwapBuffers();
 }
 
-// Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
 }
 
-// Key of ASCII code released
 void onKeyboardUp(unsigned char key, int pX, int pY) {
 
 }
 
-// Mouse click event
 void onMouse(int button, int state, int pX, int pY) {
-	printf("click\n");
-	glutPostRedisplay();
+	if (state == GLUT_DOWN) {
+		printf("click @ (%d, %d)\n", pX, pY);
+		scene.relocateCone(pX, pY);
+		glutPostRedisplay();
+	}
 }
 
-// Move mouse with key pressed
 void onMouseMotion(int pX, int pY) {
 }
 
-// Idle event indicating that some time elapsed: do animation here
 void onIdle() {
 }
